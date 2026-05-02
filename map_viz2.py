@@ -11,6 +11,7 @@ NEW_ENGLAND_STATES = [
 def load_state_shapes(shapefile_path):
     """Load real state boundaries from a Census Bureau shapefile."""
     gdf = gpd.read_file(shapefile_path)          # reads all 50 states
+    gdf = gdf.to_crs("EPSG:4326") # converts to a 
     gdf = gdf[gdf["NAME"].isin(NEW_ENGLAND_STATES)]  # keep only New England
     gdf = gdf[["NAME", "geometry"]].rename(columns={"NAME": "state"})
     return gdf.reset_index(drop=True)
