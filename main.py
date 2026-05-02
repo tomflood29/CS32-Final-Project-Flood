@@ -1,5 +1,5 @@
-from fetch_data import load_prices
+from fetch_data2 import fetch_live_prices
 from map_viz2 import build_map
 
-prices = load_prices()
+prices = fetch_live_prices()
 build_map(prices)
