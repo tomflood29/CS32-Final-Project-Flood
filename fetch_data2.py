@@ -22,7 +22,7 @@ def fetch_live_prices():
     if time.time() - _cache["timestamp"] < 300:
         return _cache["data"]
 
-    url = "https://webservices.iso-ne.com/api/v1.1/realtimelbmp/current"
+    url = "https://webservices.iso-ne.com/api/v1.1/realtimelmp/current"
     headers = {"Accept": "application/json"}
 
     response = requests.get(
