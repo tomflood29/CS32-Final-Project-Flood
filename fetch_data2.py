@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 
-#assign numeric ID to Names 
+#assign numeric ID to Names
 ISONE_ZONE_IDS = {
     ".Z.MAINE":          "Maine",
     ".Z.NEWHAMPSHIRE":   "New Hampshire",
@@ -20,7 +20,7 @@ def fetch_live_prices():
 
     headers = {"Accept": "application/json"}
 
-    response = requests.get(url, headers=headers, timeout=10)
+    response = requests.get(url, headers=headers, auth=("tomflood@college.harvard.edu", "CS32Passkey"), timeout=10)
     response.raise_for_status()  # raises an error if the request failed
 
     data = response.json()
