@@ -17,7 +17,7 @@ def load_state_shapes(shapefile_path):
 
 
 def split_massachusetts(gdf):
-    """Split the single MA polygon into three ISO-NE zones."""
+    #Split the single MA polygon into three ISO-NE zones. NEED TO GO OVER UNDERSTANDING THIS
     ma_geom = gdf.loc[gdf["state"] == "Massachusetts", "geometry"].values[0]
 
     # Define rough clipping boxes for each zone
