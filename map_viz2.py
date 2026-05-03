@@ -3,6 +3,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box
 import json
+from folium import Element
 
 NEW_ENGLAND_STATES = [
     "Maine", "New Hampshire", "Vermont",
@@ -229,7 +230,7 @@ def build_map(prices_df, snapshots= None, shapefile_path="data/shapefiles/cb_202
         </script>
         """
 
-        m.get_root().html.add_child(folium.Element(slider_js))
+        m.get_root().html.add_child(Element(slider_js))
 
     m.save("map.html")
     print("Map saved to map.html")
