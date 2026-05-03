@@ -2,6 +2,7 @@ import folium
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box
+import json
 
 NEW_ENGLAND_STATES = [
     "Maine", "New Hampshire", "Vermont",
@@ -47,7 +48,7 @@ def make_zone_shapes(shapefile_path):
     return gpd.GeoDataFrame(all_zones, crs="EPSG:4326")
 
 
-def build_map(prices_df, snapshot= None, shapefile_path="data/shapefiles/cb_2022_us_state_20m.shp"):
+def build_map(prices_df, snapshots= None, shapefile_path="data/shapefiles/cb_2022_us_state_20m.shp"):
     gdf = make_zone_shapes(shapefile_path)
     gdf = gdf.merge(prices_df, on="zone")
 
