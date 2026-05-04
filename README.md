@@ -1,7 +1,7 @@
 # CS32-Final-Project-Flood
 Final Project for CS32 course (Tom Flood)
 
-This project will aim to create a visual representation of the electrical grid of a section of MA, identifying pressure points on grid capability using data from ISO New England, and having the ability to hover over grid lines or certain areas and it will display the current price of electricity for that area.
+This project will aim to create a visual representation of the electrical grid of a section of MA, identifying pressure points on grid capability using data from ISO New England, and having the ability to hover over grid lines or certain areas and it will display the current price of electricity for that area. Additionally, the display will be able to be toggled to demonstrate
 
 The following libraries need to be installed:
 pandas
@@ -10,7 +10,7 @@ Geopandas, which aids panda with extending data analysis to maps and geometry
 
 You need to install the extension for a live server (I downloaded one by Ritwick Dey)
 
-I also needed to register for access to the ISO-NE database, but my credentials are hard coded into the script for ease of use, so the user can use my credentials rather than having to provide their own. 
+I also needed to register for access to the ISO-NE database, but my credentials are hard coded into the script for ease of use, so the user can use my credentials rather than having to provide their own.
 
 How to run the code:
 1. Input into the terminal: "python3 main.py" in order to get prices (in time these will be live from a server)
