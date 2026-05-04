@@ -32,60 +32,47 @@ def make_zone_shapes(shapefile_path):
 def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022_us_state_20m.shp"):
     gdf = make_zone_shapes(shapefile_path)
 
-    # IMPORTANT: left-join so you never "lose" polygons if a zone name is missing in prices_df
+    # Keep polygons even if a zone is missing from prices_df
     gdf = gdf.merge(prices_df, on="zone", how="left")
 
+    # --- Base map (NO choropleth) so the top-right legend/key disappears ---
     m = folium.Map(location=[43.5, -71.5], zoom_start=7)
 
-    # Base choropleth (live). This is just a backdrop; we’ll overlay our own colored layer for live+historical.
-    # Fill NaNs so Choropleth doesn't break if a zone is missing.
-    gdf_for_choro = gdf.copy()
-    gdf_for_choro["price"] = gdf_for_choro["price"].fillna(0.0)
-
-    folium.Choropleth(
-        geo_data=gdf_for_choro.to_json(),
-        data=gdf_for_choro,
-        columns=["zone", "price"],
-        key_on="feature.properties.zone",
-        fill_color="RdYlGn_r",
-        fill_opacity=0.35,
-        line_opacity=0.8,
-        legend_name="Electricity Price ($/MWh) (base layer)",
-    ).add_to(m)
-
-    # Tooltips for the base layer
+    # Add just zone outlines as a stable base layer (map always visible)
     folium.GeoJson(
-        gdf_for_choro.to_json(),
-        tooltip=folium.GeoJsonTooltip(fields=["zone", "price"]),
+        gdf[["zone", "geometry"]].to_json(),
+        style_function=lambda feature: {
+            "fillOpacity": 0.0,
+            "color": "white",
+            "weight": 1.5,
+        },
+        tooltip=folium.GeoJsonTooltip(fields=["zone"]),
+        name="Zones",
     ).add_to(m)
 
     if snapshots:
+        # Geometry-only geojson for drawing overlays in JS
         geojson_str = gdf[["zone", "geometry"]].to_json()
 
-        # --- Build historical data dict: { label: { zone: price } } ---
-        all_data = {}
-        for label, df in snapshots.items():
-            all_data[label] = dict(zip(df["zone"], df["price"]))
+        # Historical data dict: { label: { zone: price } }
+        all_data = {label: dict(zip(df["zone"], df["price"])) for label, df in snapshots.items()}
 
-        # Sort labels so the slider moves chronologically
+        # Sort labels so index increases with time (left = older, right = newer)
         time_labels = sorted(all_data.keys())
+        n_hist = len(time_labels)
 
-        # Live prices dict for JS "live overlay"
+        # Live prices (these should already be your latest 5-minute prices)
         live_data = dict(zip(prices_df["zone"], prices_df["price"]))
 
-        # --- PER-ZONE MIN/MAX over the whole window (historical + live) ---
+        # --- PER-ZONE min/max across historical + live (for per-zone coloring) ---
         zones = gdf["zone"].tolist()
         zone_minmax = {}
         for z in zones:
             series = []
-
-            # historical
             for lab in time_labels:
                 p = all_data.get(lab, {}).get(z)
                 if p is not None:
                     series.append(float(p))
-
-            # live
             p_live = live_data.get(z)
             if p_live is not None:
                 series.append(float(p_live))
@@ -93,9 +80,10 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
             if series:
                 zone_minmax[z] = {"min": float(min(series)), "max": float(max(series))}
             else:
-                # no data: JS will render grey
                 zone_minmax[z] = {"min": None, "max": None}
 
+        # Slider: 0..n_hist where n_hist == LIVE (rightmost)
+        # No play button; starts at LIVE by default.
         slider_js = f"""
         <div id="slider-container" style="
             position: fixed;
@@ -107,35 +95,37 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
             font-family: Arial, sans-serif;
-            min-width: 320px;
+            min-width: 340px;
         ">
             <div style="font-weight: bold; font-size: 14px; margin-bottom: 6px;">
-                Historical Prices (Last 24 Hours)
+                Electricity Prices (last 24h)
             </div>
+
             <div id="time-display" style="
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: bold;
                 color: #2196F3;
-                margin-bottom: 8px;
-            ">Live ▶</div>
+                margin-bottom: 10px;
+            ">Live (5-min)</div>
+
             <input
                 type="range"
                 id="time-slider"
-                min="-1"
-                max="{len(time_labels) - 1}"
-                value="-1"
+                min="0"
+                max="{n_hist}"
+                value="{n_hist}"
                 step="1"
                 style="width: 100%;"
             >
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 4px;">
+
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 6px;">
                 <span>24h ago</span>
-                <span>← Drag →</span>
-                <span>Live</span>
+                <span>Hourly</span>
+                <span>Live (5-min)</span>
             </div>
 
             <div style="font-size: 10px; color: #666; margin-top: 10px; line-height: 1.2;">
-                <b>Color scale (per zone):</b><br>
-                Green = low for that zone (24h), Red = high for that zone (24h)
+                <b>Color scale (per zone):</b> green = low (24h), red = high (24h)
             </div>
         </div>
 
@@ -144,14 +134,12 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
             const timeLabels   = {json.dumps(time_labels)};
             const geojsonData  = {geojson_str};
 
-            // NEW:
             const liveData     = {json.dumps(live_data)};
             const zoneMinMax   = {json.dumps(zone_minmax)};
 
             document.addEventListener("DOMContentLoaded", function() {{
 
                 function getMap() {{
-                    // Find the Leaflet map instance folium created
                     for (let key in window) {{
                         if (window[key] && window[key]._leaflet_id !== undefined && window[key].getCenter) {{
                             return window[key];
@@ -160,7 +148,11 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
                     return null;
                 }}
 
-                // Per-zone color: uses zoneMinMax[zone].min/max
+                function clamp01(x) {{
+                    return Math.max(0, Math.min(1, x));
+                }}
+
+                // Per-zone normalization
                 function getColor(zone, price) {{
                     if (price === undefined || price === null) return '#cccccc';
 
@@ -172,13 +164,12 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
 
                     let t;
                     if (maxP === minP) {{
-                        // flat series: use middle color
                         t = 0.5;
                     }} else {{
-                        t = Math.max(0, Math.min(1, (price - minP) / (maxP - minP)));
+                        t = clamp01((price - minP) / (maxP - minP));
                     }}
 
-                    // Green (low) → Yellow → Red (high)
+                    // Green -> Yellow -> Red
                     let r, g;
                     if (t < 0.5) {{
                         r = Math.round(255 * (t * 2));
@@ -222,39 +213,42 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
                                 ? `$${{mm.min.toFixed(2)}} – $${{mm.max.toFixed(2)}}`
                                 : "N/A";
 
+                            const priceText = (price !== undefined && price !== null)
+                                ? `$${{Number(price).toFixed(2)}}/MWh`
+                                : "No data";
+
                             layer.bindTooltip(
                                 `<b>${{zone}}</b><br>` +
-                                (price !== undefined && price !== null
-                                    ? `Now: $${{Number(price).toFixed(2)}}/MWh<br>24h range: ${{rangeText}}`
-                                    : `No data<br>24h range: ${{rangeText}}`),
+                                `Price: ${{priceText}}<br>` +
+                                `24h range: ${{rangeText}}`,
                                 {{sticky: true}}
                             );
                         }}
                     }}).addTo(leafletMap);
                 }}
 
-                function showHistorical(index) {{
-                    const label  = timeLabels[index];
+                function showAtSliderValue(v) {{
+                    // v == n_hist means LIVE (rightmost)
+                    if (v === {n_hist}) {{
+                        drawOverlay(liveData, "Live (5-min)");
+                        return;
+                    }}
+
+                    // otherwise historical index
+                    const label = timeLabels[v];
                     const prices = allData[label];
                     drawOverlay(prices, label);
                 }}
 
-                function showLive() {{
-                    // NEW: live also uses per-zone coloring by drawing an overlay
-                    drawOverlay(liveData, 'Live ▶');
-                }}
+                const slider = document.getElementById('time-slider');
 
-                document.getElementById('time-slider').addEventListener('input', function() {{
-                    const val = parseInt(this.value);
-                    if (val === -1) {{
-                        showLive();
-                    }} else {{
-                        showHistorical(val);
-                    }}
+                slider.addEventListener('input', function() {{
+                    const v = parseInt(this.value, 10);
+                    showAtSliderValue(v);
                 }});
 
-                // Start in live mode with the per-zone overlay applied
-                showLive();
+                // Start at LIVE (rightmost)
+                showAtSliderValue({n_hist});
             }});
         </script>
         """
