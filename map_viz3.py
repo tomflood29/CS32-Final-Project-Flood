@@ -100,18 +100,20 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
         const snapshots = {json.dumps(all_history)};
         const labels = {json.dumps(full_sequence)};
         const geojson = {gdf[["zone", "geometry"]].to_json()};
-        const pMin = {p_min}, pMax = {p_max};
+        const zoneMinMax = {json.dumps(zone_minmax)};
 
         let currentLayer = null, animTimer = null, currentIdx = labels.length - 1;
 
-        function getColor(p) {{
+        function getColor(zone, p) {
             if (p == null) return '#ccc';
-            const t = Math.max(0, Math.min(1, (p - pMin) / (pMax - pMin || 1)));
+            const mm = zoneMinMax[zone];
+            if (!mm) return '#ccc';
+            const denom = (mm.max - mm.min) || 1;
+            const t = Math.max(0, Math.min(1, (p - mm.min) / denom));
             let r = t < 0.5 ? Math.floor(255 * (t * 2)) : 255;
             let g = t < 0.5 ? 255 : Math.floor(255 * (1 - (t - 0.5) * 2));
-            return `rgb(${{r}},${{g}},40)`;
-        }}
-
+            return `rgb(${r},${g},40)`;
+            }
         function render(idx) {{
             const map = window[Object.keys(window).find(k => k.startsWith('map_'))];
             currentIdx = idx;
