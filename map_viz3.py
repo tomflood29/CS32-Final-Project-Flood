@@ -3,7 +3,6 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box
 import json
-from branca.element import Element
 
 NEW_ENGLAND_STATES = ["Maine", "New Hampshire", "Vermont", "Connecticut", "Rhode Island", "Massachusetts"]
 
