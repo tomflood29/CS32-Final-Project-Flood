@@ -3,6 +3,9 @@ import pandas as pd
 import time
 import json
 
+#Simple in-memory cache to avoid hammering the API (5-minute TTL)
+_cache = {"data": None, "timestamp": 0}
+
 # Assign zone IDs to human-readable names
 ISONE_ZONE_IDS = {
     ".Z.MAINE":        "Maine",
