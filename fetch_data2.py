@@ -97,7 +97,7 @@ def fetch_historical_prices(hours_back=24):
         date_str = target_time.strftime("%Y%m%d")
         hour_str = target_time.strftime("%H")
 
-        url = f"https://webservices.iso-ne.com/api/v1.1/hourlylmp/day/{date_str}/hour/{hour_str}/all.json"
+        url = f"https://webservices.iso-ne.com/api/v1.1/hourlylmp/rt/prelim/day/{date_str}/hour/{hour_str}.json"
 
         headers = {"Accept": "application/json"}
         response = requests.get(
@@ -130,7 +130,7 @@ def fetch_historical_prices(hours_back=24):
                 })
 
         if rows:
-            label = target_time.strftime("%I %p")  # e.g. "02 PM"
+            label = target_time.strftime("%Y-%m-%d %H:00")
             snapshots[label] = pd.DataFrame(rows)
 
         time.sleep(0.3)  # be polite to the API
