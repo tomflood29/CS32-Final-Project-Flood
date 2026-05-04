@@ -64,10 +64,10 @@ def fetch_live_prices():
 
     rows = []
     for entry in lmps:
-        location_id = entry["Location"]["$"]
-        if location_id in ISONE_ZONE_IDS:
+        location_id = normalize_loc(entry["Location"]["$"])
+        if location_id in ISONE_ZONE_IDS_NORM:
             rows.append({
-                "zone":  ISONE_ZONE_IDS[location_id],
+                "zone": ISONE_ZONE_IDS_NORM[location_id],
                 "price": float(entry["LmpTotal"]),
             })
 
@@ -121,10 +121,10 @@ def fetch_historical_prices(hours_back=24):
 
         rows = []
         for entry in lmps:
-            location_id = entry["Location"]["$"]
-            if location_id in ISONE_ZONE_IDS:
+            location_id = normalize_loc(entry["Location"]["$"])
+            if location_id in ISONE_ZONE_IDS_NORM:
                 rows.append({
-                    "zone":  ISONE_ZONE_IDS[location_id],
+                    "zone": ISONE_ZONE_IDS_NORM[location_id],
                     "price": float(entry["LmpTotal"]),
                 })
 
