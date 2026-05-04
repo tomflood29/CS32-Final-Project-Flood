@@ -27,4 +27,6 @@ For the files to make the shape of the states, I sourced from the US Census Bure
 
 For the live data pricing, I used an API key from ISO-NE, and then found the documentation for requestion information from the API from the documentation: https://webservices.iso-ne.com/docs/v1.1/
 
-I also heavily relied on the AI Sandbox with GPT 5.1 to generate code to implement JSON features, such as the 
+You can check the validity of the data using the following link(may need to sign in to ISO-NE): https://www.iso-ne.com/isoexpress/web/guest/charts
+
+I also heavily relied on the AI Sandbox with GPT 5.1 to generate code to implement JSON features, such as the slider. 
