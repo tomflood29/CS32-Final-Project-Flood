@@ -81,58 +81,88 @@ def fetch_live_prices():
 
 def fetch_historical_prices(hours_back=24):
     """
-    Fetch LMP data for the past N hours at hourly intervals.
-    Returns a dict of { "HH:MM" : prices_dataframe }
+    Fetch RT Preliminary Hourly LMP data for the past N hours.
+    Returns a dict of { "YYYY-MM-DD HH:00" : prices_dataframe }
     """
     from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
     import time
+    import pandas as pd
+    import requests
 
+    tz = ZoneInfo("America/New_York")  # ISO-NE is Eastern
+    end = datetime.now(tz).replace(minute=0, second=0, microsecond=0)
+    start = end - timedelta(hours=hours_back)
+
+    # The exact hours we want snapshots for (last 24 full hours)
+    wanted_hours = [start + timedelta(hours=i) for i in range(hours_back)]
+    wanted_labels = {dt.strftime("%Y-%m-%d %H:00") for dt in wanted_hours}
+
+    # Only need to query the days that appear in the window
+    needed_days = sorted({dt.strftime("%Y%m%d") for dt in wanted_hours})
+
+    # label -> {zone -> price}
+    prices_by_label = {dt.strftime("%Y-%m-%d %H:00"): {} for dt in wanted_hours}
+
+    session = requests.Session()
+    headers = {"Accept": "application/json"}
+
+    for location_id, zone_name in ISONE_ZONE_IDS.items():
+        for day_str in needed_days:
+            url = (
+                "https://webservices.iso-ne.com/api/v1.1/"
+                f"hourlylmp/rt/prelim/day/{day_str}/location/{location_id}.json"
+            )
+
+            try:
+                r = session.get(
+                    url,
+                    headers=headers,
+                    auth=("tomflood@college.harvard.edu", "CS32Passkey"),
+                    timeout=(5, 45),  # (connect timeout, read timeout)
+                )
+                if r.status_code != 200:
+                    print("Hourly failed:", r.status_code, url)
+                    continue
+                data = r.json()
+            except requests.exceptions.ReadTimeout:
+                print("Hourly timed out:", url)
+                continue
+            except requests.exceptions.RequestException as e:
+                print("Hourly request error:", e, url)
+                continue
+
+            root = data.get("HourlyLmps") or data.get("HourlyLmp")
+            if not root:
+                continue
+
+            lmps = root.get("HourlyLmp", [])
+            if isinstance(lmps, dict):
+                lmps = [lmps]
+
+            for entry in lmps:
+                begin = entry.get("BeginDate")
+                if not begin:
+                    continue
+
+                # ISO-NE BeginDate is a dateTime; parse and convert to Eastern
+                dt = datetime.fromisoformat(begin.replace("Z", "+00:00")).astimezone(tz)
+                label = dt.strftime("%Y-%m-%d %H:00")
+
+                if label in wanted_labels:
+                    try:
+                        prices_by_label[label][zone_name] = float(entry["LmpTotal"])
+                    except (KeyError, TypeError, ValueError):
+                        pass
+
+            time.sleep(0.15)  # be polite
+
+    # Convert to the exact structure your map expects
     snapshots = {}
-    now = datetime.now()
-
-    for hours_ago in range(hours_back, 0, -1):
-        target_time = now - timedelta(hours=hours_ago)
-
-        # ISO-NE historical endpoint format
-        date_str = target_time.strftime("%Y%m%d")
-        hour_str = target_time.strftime("%H")
-
-        url = f"https://webservices.iso-ne.com/api/v1.1/hourlylmp/rt/prelim/day/{date_str}/hour/{hour_str}.json"
-
-        headers = {"Accept": "application/json"}
-        response = requests.get(
-            url,
-            headers=headers,
-            auth=("tomflood@college.harvard.edu", "CS32Passkey"),
-            timeout=10
-        )
-
-        if response.status_code != 200:
-            print("Hourly failed:", response.status_code, url)
-            continue
-
-        data = response.json()
-        root = data.get("HourlyLmps") or data.get("HourlyLmp")
-        if not root:
-            continue
-
-        lmps = root.get("HourlyLmp", [])
-        if isinstance(lmps, dict):
-            lmps = [lmps]
-
-        rows = []
-        for entry in lmps:
-            location_id = normalize_loc(entry["Location"]["$"])
-            if location_id in ISONE_ZONE_IDS_NORM:
-                rows.append({
-                    "zone": ISONE_ZONE_IDS_NORM[location_id],
-                    "price": float(entry["LmpTotal"]),
-                })
-
-        if rows:
-            label = target_time.strftime("%Y-%m-%d %H:00")
-            snapshots[label] = pd.DataFrame(rows)
-
-        time.sleep(0.3)  # be polite to the API
+    for label, zone_to_price in prices_by_label.items():
+        if zone_to_price:
+            snapshots[label] = pd.DataFrame(
+                [{"zone": z, "price": p} for z, p in zone_to_price.items()]
+            )
 
     return snapshots
