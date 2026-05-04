@@ -15,13 +15,36 @@ ISONE_ZONE_IDS = {
     ".Z.NEMASSBOST":   "Northeast Massachusetts/Boston",
 }
 
-ISONE_ZONE_IDS_NORM = {k.lstrip("."): v for k, v in ISONE_ZONE_IDS.items()}
+def fetch_zone_locids():
+    """
+    Returns dict mapping zone code like '.Z.MAINE' -> numeric LocId (as a string).
+    Uses the current 5-minute LMP feed just to discover LocIds.
+    """
+    url = "https://webservices.iso-ne.com/api/v1.1/fiveminutelmp/current/all.json"
+    r = requests.get(
+        url,
+        headers={"Accept": "application/json"},
+        auth=("tomflood@college.harvard.edu", "CS32Passkey"),
+        timeout=(5, 30),
+    )
+    r.raise_for_status()
+    data = r.json()
 
-def normalize_loc(loc: str) -> str:
-    return loc.lstrip(".").strip()
+    root = data.get("FiveMinLmps") or data.get("FiveMinLmp")
+    lmps = root.get("FiveMinLmp", []) if root else []
+    if isinstance(lmps, dict):
+        lmps = [lmps]
 
-# Simple in-memory cache to avoid hammering the API (5-minute TTL)
-_cache = {"data": None, "timestamp": 0}
+    zone_locids = {}
+    for entry in lmps:
+        loc = entry.get("Location", {})
+        zone_code = loc.get("$")          # e.g. ".Z.MAINE"
+        loc_id = loc.get("@LocId")        # e.g. "1234" (this is what hourly endpoint wants)
+
+        if zone_code in ISONE_ZONE_IDS and loc_id is not None:
+            zone_locids[zone_code] = str(loc_id)
+
+    return zone_locids
 
 def fetch_live_prices():
     # Return cached data if it's less than 5 minutes old
