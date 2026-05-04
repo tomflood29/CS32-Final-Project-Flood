@@ -48,7 +48,25 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
     all_history[live_label] = dict(zip(prices_df["zone"], prices_df["price"]))
     full_sequence = sorted_labels + [live_label]
 
-    p_min, p_max = min(price_pool), max(price_pool)
+
+    # --- PER-ZONE NORMALIZATION ---
+    # Build zone -> list of prices over time
+    zone_series = {z: [] for z in gdf["zone"].tolist()}
+
+    for label, zone_to_price in all_history.items():
+        for z in zone_series.keys():
+            p = zone_to_price.get(z)
+            if p is not None:
+                zone_series[z].append(p)
+
+    # zone -> {"min": ..., "max": ...}
+    zone_minmax = {}
+    for z, series in zone_series.items():
+        if series:
+            zone_minmax[z] = {"min": float(min(series)), "max": float(max(series))}
+        else:
+            zone_minmax[z] = {"min": 0.0, "max": 1.0}  # fallback
+
 
     # 2. INJECT ANIMATION INTERFACE
     animation_html = f"""
