@@ -32,195 +32,241 @@ def make_zone_shapes(shapefile_path):
 
 def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022_us_state_20m.shp"):
     gdf = make_zone_shapes(shapefile_path)
-    m = folium.Map(location=[44.0, -71.5], zoom_start=7, tiles="cartodbpositron")
-    map_var = m.get_name()
 
-    # ----------------------------
-    # 1) Build history: label -> {zone_name: price}
-    # ----------------------------
-    all_history = {}
+    # IMPORTANT: left-join so you never "lose" polygons if a zone name is missing in prices_df
+    gdf = gdf.merge(prices_df, on="zone", how="left")
 
-    # historical frames (sorted so the slider moves forward in time)
-    sorted_labels = sorted(snapshots.keys()) if snapshots else []
-    for label in sorted_labels:
-        df = snapshots[label]
-        all_history[label] = dict(zip(df["zone"], df["price"]))
+    m = folium.Map(location=[43.5, -71.5], zoom_start=7)
 
-    # live frame at the end
-    live_label = "LIVE NOW"
-    if prices_df is not None and not prices_df.empty:
-        all_history[live_label] = dict(zip(prices_df["zone"], prices_df["price"]))
-    else:
-        all_history[live_label] = {}
+    # Base choropleth (live). This is just a backdrop; we’ll overlay our own colored layer for live+historical.
+    # Fill NaNs so Choropleth doesn't break if a zone is missing.
+    gdf_for_choro = gdf.copy()
+    gdf_for_choro["price"] = gdf_for_choro["price"].fillna(0.0)
 
-    full_sequence = sorted_labels + [live_label]
+    folium.Choropleth(
+        geo_data=gdf_for_choro.to_json(),
+        data=gdf_for_choro,
+        columns=["zone", "price"],
+        key_on="feature.properties.zone",
+        fill_color="RdYlGn_r",
+        fill_opacity=0.35,
+        line_opacity=0.8,
+        legend_name="Electricity Price ($/MWh) (base layer)",
+    ).add_to(m)
 
-    # ----------------------------
-    # 2) PER-ZONE normalization: zone -> {min, max} across all frames
-    # ----------------------------
-    zones = gdf["zone"].tolist()
-    zone_minmax = {}
+    # Tooltips for the base layer
+    folium.GeoJson(
+        gdf_for_choro.to_json(),
+        tooltip=folium.GeoJsonTooltip(fields=["zone", "price"]),
+    ).add_to(m)
 
-    for z in zones:
-        series = []
-        for _, zone_to_price in all_history.items():
-            p = zone_to_price.get(z)
-            if p is not None:
-                series.append(float(p))
+    if snapshots:
+        geojson_str = gdf[["zone", "geometry"]].to_json()
 
-        if series:
-            zone_minmax[z] = {"min": float(min(series)), "max": float(max(series))}
-        else:
-            zone_minmax[z] = {"min": 0.0, "max": 1.0}
+        # --- Build historical data dict: { label: { zone: price } } ---
+        all_data = {}
+        for label, df in snapshots.items():
+            all_data[label] = dict(zip(df["zone"], df["price"]))
 
-    # ----------------------------
-    # 3) UI panel (legend text updated for per-zone scaling)
-    # ----------------------------
-    panel_html = f"""
-    <div id="anim-panel" style="position: fixed; bottom: 30px; left: 30px; width: 340px;
-         z-index:9999; background: white; padding: 20px; border-radius: 12px;
-         box-shadow: 0 8px 24px rgba(0,0,0,0.2); font-family: sans-serif;">
+        # Sort labels so the slider moves chronologically
+        time_labels = sorted(all_data.keys())
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <b style="font-size: 14px;">ISO-NE Price Pulse (24h)</b>
-            <span id="txt-time" style="font-weight: bold; color: white; background: #2196F3; padding: 2px 8px; border-radius: 4px; font-size: 11px;">{live_label}</span>
-        </div>
+        # Live prices dict for JS "live overlay"
+        live_data = dict(zip(prices_df["zone"], prices_df["price"]))
 
-        <input id="slider" type="range" min="0" max="{len(full_sequence)-1}" value="{len(full_sequence)-1}" style="width: 100%;">
+        # --- PER-ZONE MIN/MAX over the whole window (historical + live) ---
+        zones = gdf["zone"].tolist()
+        zone_minmax = {}
+        for z in zones:
+            series = []
 
-        <div style="display: flex; gap: 10px; margin: 15px 0;">
-            <button id="play" type="button" style="flex: 1; padding: 8px; background: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer;">Play</button>
-            <button id="pause" type="button" style="flex: 1; padding: 8px; background: #95a5a6; color: white; border: none; border-radius: 4px; cursor: pointer;">Pause</button>
-        </div>
+            # historical
+            for lab in time_labels:
+                p = all_data.get(lab, {}).get(z)
+                if p is not None:
+                    series.append(float(p))
 
-        <div style="font-size: 10px; color: #666; line-height: 1.25;">
-            <div style="margin-bottom: 6px;">
-                <b>Color meaning (per zone):</b><br>
-                Green = low for that zone (last 24h), Red = high for that zone (last 24h)
+            # live
+            p_live = live_data.get(z)
+            if p_live is not None:
+                series.append(float(p_live))
+
+            if series:
+                zone_minmax[z] = {"min": float(min(series)), "max": float(max(series))}
+            else:
+                # no data: JS will render grey
+                zone_minmax[z] = {"min": None, "max": None}
+
+        slider_js = f"""
+        <div id="slider-container" style="
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 9999;
+            background: white;
+            padding: 14px 18px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-family: Arial, sans-serif;
+            min-width: 320px;
+        ">
+            <div style="font-weight: bold; font-size: 14px; margin-bottom: 6px;">
+                Historical Prices (Last 24 Hours)
             </div>
-            <div style="height: 8px; width: 100%;
-                        background: linear-gradient(to right, #2ecc71, #f1c40f, #e74c3c);
-                        border-radius: 4px;"></div>
+            <div id="time-display" style="
+                font-size: 18px;
+                font-weight: bold;
+                color: #2196F3;
+                margin-bottom: 8px;
+            ">Live ▶</div>
+            <input
+                type="range"
+                id="time-slider"
+                min="-1"
+                max="{len(time_labels) - 1}"
+                value="-1"
+                step="1"
+                style="width: 100%;"
+            >
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 4px;">
+                <span>24h ago</span>
+                <span>← Drag →</span>
+                <span>Live</span>
+            </div>
+
+            <div style="font-size: 10px; color: #666; margin-top: 10px; line-height: 1.2;">
+                <b>Color scale (per zone):</b><br>
+                Green = low for that zone (24h), Red = high for that zone (24h)
+            </div>
         </div>
-    </div>
-    """
-    m.get_root().html.add_child(Element(panel_html))
 
-    # ----------------------------
-    # 4) JS animation + per-zone color scaling
-    # ----------------------------
-    js = f"""
-    <script>
-    window.addEventListener('load', function() {{
-        const map = {map_var};
+        <script>
+            const allData      = {json.dumps(all_data)};
+            const timeLabels   = {json.dumps(time_labels)};
+            const geojsonData  = {geojson_str};
 
-        const snapshots = {json.dumps(all_history)};
-        const labels = {json.dumps(full_sequence)};
-        const geojson = {gdf[["zone", "geometry"]].to_json()};
+            // NEW:
+            const liveData     = {json.dumps(live_data)};
+            const zoneMinMax   = {json.dumps(zone_minmax)};
 
-        // zone -> {{min, max}} computed in Python across the whole 24h window
-        const zoneMinMax = {json.dumps(zone_minmax)};
+            document.addEventListener("DOMContentLoaded", function() {{
 
-        const panel = document.getElementById('anim-panel');
-        if (window.L && panel) {{
-            L.DomEvent.disableClickPropagation(panel);
-            L.DomEvent.disableScrollPropagation(panel);
-        }}
-
-        let currentLayer = null;
-        let animTimer = null;
-        let currentIdx = labels.length - 1;
-
-        function clamp01(x) {{
-            return Math.max(0, Math.min(1, x));
-        }}
-
-        function getColor(zone, p) {{
-            if (p == null) return '#ccc';
-
-            const mm = zoneMinMax[zone];
-            if (!mm) return '#ccc';
-
-            const minP = mm.min;
-            const maxP = mm.max;
-
-            // If this zone had a flat line (min == max), use a neutral-ish color
-            let t;
-            if (maxP === minP) {{
-                t = 0.5;
-            }} else {{
-                t = clamp01((p - minP) / (maxP - minP));
-            }}
-
-            // green -> yellow -> red
-            let r = (t < 0.5) ? Math.floor(255 * (t * 2)) : 255;
-            let g = (t < 0.5) ? 255 : Math.floor(255 * (1 - (t - 0.5) * 2));
-            return `rgb(${{r}},${{g}},40)`;
-        }}
-
-        function render(idx) {{
-            currentIdx = idx;
-            const label = labels[idx];
-            const prices = snapshots[label] || {{}};
-
-            document.getElementById('txt-time').innerText = label;
-            document.getElementById('slider').value = idx;
-
-            if (currentLayer) map.removeLayer(currentLayer);
-
-            currentLayer = L.geoJson(geojson, {{
-                style: (f) => {{
-                    const zone = f.properties.zone;
-                    const p = prices[zone];
-                    return {{
-                        fillColor: getColor(zone, p),
-                        fillOpacity: 0.82,
-                        color: 'white',
-                        weight: 1.5
-                    }};
-                }},
-                onEachFeature: (f, l) => {{
-                    const zone = f.properties.zone;
-                    const p = prices[zone];
-
-                    const mm = zoneMinMax[zone] || {{min: null, max: null}};
-                    const pTxt = (p == null) ? "N/A" : p.toFixed(2);
-                    const rangeTxt =
-                        (mm.min == null || mm.max == null)
-                            ? "N/A"
-                            : `${{mm.min.toFixed(2)}} – ${{mm.max.toFixed(2)}}`;
-
-                    l.bindTooltip(
-                        `<b>${{zone}}</b><br>` +
-                        `Now: $$${{pTxt}}/MWh<br>` +
-                        `24h range (this zone): $$${{rangeTxt}}/MWh`
-                    );
+                function getMap() {{
+                    // Find the Leaflet map instance folium created
+                    for (let key in window) {{
+                        if (window[key] && window[key]._leaflet_id !== undefined && window[key].getCenter) {{
+                            return window[key];
+                        }}
+                    }}
+                    return null;
                 }}
-            }}).addTo(map);
-        }}
 
-        document.getElementById('slider').addEventListener('input', (e) => {{
-            if (animTimer) clearInterval(animTimer);
-            render(parseInt(e.target.value, 10));
-        }});
+                // Per-zone color: uses zoneMinMax[zone].min/max
+                function getColor(zone, price) {{
+                    if (price === undefined || price === null) return '#cccccc';
 
-        document.getElementById('play').addEventListener('click', () => {{
-            if (animTimer) clearInterval(animTimer);
-            animTimer = setInterval(() => {{
-                currentIdx = (currentIdx + 1) % labels.length;
-                render(currentIdx);
-            }}, 600);
-        }});
+                    const mm = zoneMinMax[zone];
+                    if (!mm || mm.min === null || mm.max === null) return '#cccccc';
 
-        document.getElementById('pause').addEventListener('click', () => {{
-            if (animTimer) clearInterval(animTimer);
-        }});
+                    const minP = mm.min;
+                    const maxP = mm.max;
 
-        render(currentIdx);
-    }});
-    </script>
-    """
-    m.get_root().script.add_child(Element(js))
+                    let t;
+                    if (maxP === minP) {{
+                        // flat series: use middle color
+                        t = 0.5;
+                    }} else {{
+                        t = Math.max(0, Math.min(1, (price - minP) / (maxP - minP)));
+                    }}
+
+                    // Green (low) → Yellow → Red (high)
+                    let r, g;
+                    if (t < 0.5) {{
+                        r = Math.round(255 * (t * 2));
+                        g = 255;
+                    }} else {{
+                        r = 255;
+                        g = Math.round(255 * (1 - (t - 0.5) * 2));
+                    }}
+                    return `rgb(${{r}}, ${{g}}, 0)`;
+                }}
+
+                let overlayLayer = null;
+
+                function drawOverlay(pricesByZone, labelText) {{
+                    const leafletMap = getMap();
+                    if (!leafletMap) return;
+
+                    document.getElementById('time-display').textContent = labelText;
+
+                    if (overlayLayer) {{
+                        leafletMap.removeLayer(overlayLayer);
+                    }}
+
+                    overlayLayer = L.geoJSON(geojsonData, {{
+                        style: function(feature) {{
+                            const zone = feature.properties.zone;
+                            const price = pricesByZone[zone];
+                            return {{
+                                fillColor:   getColor(zone, price),
+                                fillOpacity: 0.75,
+                                color:       'white',
+                                weight:      1.5
+                            }};
+                        }},
+                        onEachFeature: function(feature, layer) {{
+                            const zone  = feature.properties.zone;
+                            const price = pricesByZone[zone];
+
+                            const mm = zoneMinMax[zone];
+                            const rangeText = (mm && mm.min !== null && mm.max !== null)
+                                ? `$${{mm.min.toFixed(2)}} – $${{mm.max.toFixed(2)}}`
+                                : "N/A";
+
+                            layer.bindTooltip(
+                                `<b>${{zone}}</b><br>` +
+                                (price !== undefined && price !== null
+                                    ? `Now: $${{Number(price).toFixed(2)}}/MWh<br>24h range: ${{rangeText}}`
+                                    : `No data<br>24h range: ${{rangeText}}`),
+                                {{sticky: true}}
+                            );
+                        }}
+                    }}).addTo(leafletMap);
+                }}
+
+                function showHistorical(index) {{
+                    const label  = timeLabels[index];
+                    const prices = allData[label];
+                    drawOverlay(prices, label);
+                }}
+
+                function showLive() {{
+                    // NEW: live also uses per-zone coloring by drawing an overlay
+                    drawOverlay(liveData, 'Live ▶');
+                }}
+
+                document.getElementById('time-slider').addEventListener('input', function() {{
+                    const val = parseInt(this.value);
+                    if (val === -1) {{
+                        showLive();
+                    }} else {{
+                        showHistorical(val);
+                    }}
+                }});
+
+                // Start in live mode with the per-zone overlay applied
+                showLive();
+            }});
+        </script>
+        """
 
     m.save("map.html")
+
+    if snapshots:
+        with open("map.html", "r") as f:
+            html = f.read()
+        html = html.replace("</body>", slider_js + "</body>")
+        with open("map.html", "w") as f:
+            f.write(html)
+
     print("Map saved to map.html")
