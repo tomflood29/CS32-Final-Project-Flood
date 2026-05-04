@@ -108,6 +108,7 @@ def fetch_historical_prices(hours_back=24):
         )
 
         if response.status_code != 200:
+            print("Hourly failed:", response.status_code, url)
             continue
 
         data = response.json()
