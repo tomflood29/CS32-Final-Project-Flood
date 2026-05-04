@@ -15,6 +15,11 @@ ISONE_ZONE_IDS = {
     ".Z.NEMASSBOST":   "Northeast Massachusetts/Boston",
 }
 
+ISONE_ZONE_IDS_NORM = {k.lstrip("."): v for k, v in ISONE_ZONE_IDS.items()}
+
+def normalize_loc(loc: str) -> str:
+    return loc.lstrip(".").strip()
+
 # Simple in-memory cache to avoid hammering the API (5-minute TTL)
 _cache = {"data": None, "timestamp": 0}
 
