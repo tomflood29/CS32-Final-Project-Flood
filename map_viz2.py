@@ -230,8 +230,15 @@ def build_map(prices_df, snapshots= None, shapefile_path="data/shapefiles/cb_202
         </script>
         """
 
-        m.get_root().html.add_child(Element(slider_js))
+
 
     m.save("map.html")
+    
+    if snapshots:
+        with open("map.html", "r") as f:
+            html = f.read()
+        html = html.replace("</body>", slider_js + "</body>")
+        with open("map.html", "w") as f:
+            f.write(html)
+
     print("Map saved to map.html")
-    m.save("map.html")
