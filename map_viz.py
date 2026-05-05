@@ -38,7 +38,7 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
 
     folium.GeoJson(
         gdf[["zone", "geometry"]].to_json(), #creates a zone which price data can be seen when mouse goes over - colour handled by JSON slider
-        style_function=lambda: {
+        style_function=lambda feature: {
             "fillOpacity": 0.0,
             "color": "white",
             "weight": 1.5,
