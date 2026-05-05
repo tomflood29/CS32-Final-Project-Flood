@@ -7,12 +7,12 @@ import json
 NEW_ENGLAND_STATES = ["Maine", "New Hampshire", "Vermont", "Connecticut", "Rhode Island", "Massachusetts"]
 
 def load_state_shapes(shapefile_path):
-    gdf = gpd.read_file(shapefile_path) #gets the state lines data from Census Bureau 
+    gdf = gpd.read_file(shapefile_path) #gets the state lines data from Census Bureau
     gdf = gdf.to_crs("EPSG:4326") #converts to consistent long / lat co-ordinates
-    gdf = gdf[gdf["NAME"].isin(NEW_ENGLAND_STATES)]
-    return gdf[["NAME", "geometry"]].rename(columns={"NAME": "state"}).reset_index(drop=True)
+    gdf = gdf[gdf["NAME"].isin(NEW_ENGLAND_STATES)] #limits geo data frame to only New England states
+    return gdf[["NAME", "geometry"]].rename(columns={"NAME": "state"}).reset_index(drop=True) #limits only the name and geometry of state
 
-def split_massachusetts(gdf):
+def split_massachusetts(gdf): # 3 pricing zones 
     ma_geom = gdf.loc[gdf["state"] == "Massachusetts", "geometry"].values[0]
     west_clip = box(-73.5, 41.2, -71.8, 42.9)
     ne_clip   = box(-71.8, 42.25, -69.9, 42.9)
