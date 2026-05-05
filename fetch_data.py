@@ -130,7 +130,7 @@ def fetch_historical_prices(hours_back=24):
 
     zone_locids = fetch_zone_locids() #need numerical IDs - unlike 5 mins data
 
-    for zone_code, zone_name in ISONE_ZONES.items(): #gets the data for each day and each hour, for each zone 
+    for zone_code, zone_name in ISONE_ZONES.items(): #gets the data for each day and each hour, for each zone
         locid = zone_locids.get(zone_code)
         if not locid:
             print(f"Missing LocId for {zone_code}; skipping")
@@ -157,7 +157,7 @@ def fetch_historical_prices(hours_back=24):
             if not root:
                 continue
 
-            lmps = root.get("HourlyLmp", [])
+            lmps = root.get("HourlyLmp", [])# once again, if returns dictionary
             if isinstance(lmps, dict):
                 lmps = [lmps]
 
@@ -166,16 +166,14 @@ def fetch_historical_prices(hours_back=24):
                 if not begin:
                     continue
 
-                # ISO-NE begin dates are ISO strings; sometimes end with Z
-                begin_norm = begin.replace("Z", "+00:00")
+                begin_norm = begin.replace("Z", "+00:00")# ISO-NE begin dates are ISO strings; sometimes end with Z
                 try:
                     dt = datetime.fromisoformat(begin_norm)
                 except ValueError:
                     continue
 
-                # If timezone missing, assume Eastern; otherwise convert to Eastern
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=tz)
+                    dt = dt.replace(tzinfo=tz)#If timezone missing, assume Eastern; otherwise convert to Eastern
                 else:
                     dt = dt.astimezone(tz)
 
