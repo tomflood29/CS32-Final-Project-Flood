@@ -184,10 +184,9 @@ def fetch_historical_prices(hours_back=24):
                     except (KeyError, TypeError, ValueError):
                         pass
 
-            time.sleep(0.12)  # be polite
+            time.sleep(0.12)  # limits time requests so not kicked off API
 
-    # Convert to the format map_viz3 expects: label -> DataFrame(zone, price)
-    snapshots = {}
+    snapshots = {} #combines the data into a data frame of formatted time : data
     for label, zone_to_price in prices_by_label.items():
         if zone_to_price:
             snapshots[label] = pd.DataFrame(
