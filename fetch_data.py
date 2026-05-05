@@ -123,12 +123,12 @@ def fetch_historical_prices(hours_back=24):
     wanted_hours = [start_hour + timedelta(hours=i) for i in range(hours_back)]
     wanted_labels = {dt.strftime("%Y-%m-%d %H:00") for dt in wanted_hours} #put all the past 24 hours in form YYYY-MM-DD TT:00 so can search API for these
 
-    needed_days = sorted({dt.strftime("%Y%m%d") for dt in wanted_hours}) #gets the wanted days 
+    needed_days = sorted({dt.strftime("%Y%m%d") for dt in wanted_hours}) #gets the wanted days
 
     # Prepare structure label -> dict(zone_name -> price)
     prices_by_label = {dt.strftime("%Y-%m-%d %H:00"): {} for dt in wanted_hours}
 
-    zone_locids = fetch_zone_locids()
+    zone_locids = fetch_zone_locids() #need numerical IDs - unlike 5 mins data
 
     for zone_code, zone_name in ISONE_ZONES.items():
         locid = zone_locids.get(zone_code)
