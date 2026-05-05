@@ -80,19 +80,18 @@ def fetch_zone_locids(force_refresh=False) -> dict:
 def fetch_live_prices():
     """Fetch latest 5-minute LMPs for your zones."""
     if time.time() - _live_cache["ts"] < 300 and _live_cache["data"] is not None:
-        return _live_cache["data"]
+        return _live_cache["data"] #checks if last updated less than 5 mins ago - uses cache if so
 
     url = f"{BASE}/fiveminutelmp/current/all.json"
     r = _get(url, timeout=(5, 45))
     r.raise_for_status()
 
     data = r.json()
-    # Keep your debug dump if you want
     with open("api_response.json", "w") as f:
         json.dump(data, f, indent=2)
-    print("Response saved to api_response.json")
+    print("Response saved to api_response.json") #really helpful with debugging - most useful visual
 
-    root = data.get("FiveMinLmps") or data.get("FiveMinLmp")
+    root = data.get("FiveMinLmps") or data.get("FiveMinLmp") # similar to before, checking keys
     if not root:
         print(f"Unexpected JSON structure. Available keys: {list(data.keys())}")
         return pd.DataFrame(columns=["zone", "price"])
