@@ -7,8 +7,8 @@ import json
 NEW_ENGLAND_STATES = ["Maine", "New Hampshire", "Vermont", "Connecticut", "Rhode Island", "Massachusetts"]
 
 def load_state_shapes(shapefile_path):
-    gdf = gpd.read_file(shapefile_path) #gets the state lines data from Bureau of Information
-    gdf = gdf.to_crs("EPSG:4326") #converts to consistent long / lat co-ordinates 
+    gdf = gpd.read_file(shapefile_path) #gets the state lines data from Census Bureau 
+    gdf = gdf.to_crs("EPSG:4326") #converts to consistent long / lat co-ordinates
     gdf = gdf[gdf["NAME"].isin(NEW_ENGLAND_STATES)]
     return gdf[["NAME", "geometry"]].rename(columns={"NAME": "state"}).reset_index(drop=True)
 
