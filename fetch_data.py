@@ -52,12 +52,12 @@ def fetch_zone_locids(force_refresh=False) -> dict:
     r.raise_for_status() #if error - 404 etc, returns error message
     data = r.json()
 
-    root = data.get("FiveMinLmps") or data.get("FiveMinLmp") #checks that data["Key"] exists - returns error if not. 
+    root = data.get("FiveMinLmps") or data.get("FiveMinLmp") #checks that data["Key"] exists - returns error if not.
     if not root:
         raise RuntimeError(f"Unexpected JSON structure for fiveminutelmp. Top keys: {list(data.keys())}")
 
-    lmps = root.get("FiveMinLmp", [])
-    if isinstance(lmps, dict):
+    lmps = root.get("FiveMinLmp", []) 
+    if isinstance(lmps, dict): # where API returns dictionary, rather than list, this turns it into a list so for loop works.
         lmps = [lmps]
 
     zone_to_locid = {}
