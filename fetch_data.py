@@ -45,11 +45,11 @@ def fetch_zone_locids(force_refresh=False) -> dict:
       entry["Location"]["@LocId"] -> numeric id required by /hourlylmp/.../location/{locationId}
     """
     if (not force_refresh) and (time.time() - _locid_cache["ts"] < 3600) and _locid_cache["data"]:
-        return _locid_cache["data"]
+        return _locid_cache["data"] #if data less than an hour old, don't call on API request, just use cache
 
     url = f"{BASE}/fiveminutelmp/current/all.json"
     r = _get(url, timeout=(5, 45))
-    r.raise_for_status()
+    r.raise_for_status() #if error - 404 etc, returns error message
     data = r.json()
 
     root = data.get("FiveMinLmps") or data.get("FiveMinLmp")
