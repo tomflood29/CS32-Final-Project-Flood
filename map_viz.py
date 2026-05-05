@@ -14,11 +14,11 @@ def load_state_shapes(shapefile_path):
 
 def split_massachusetts(gdf): # 3 pricing zones
     ma_geom = gdf.loc[gdf["state"] == "Massachusetts", "geometry"].values[0]
-    west_clip = box(-73.5, 41.2, -71.8, 42.9) #cuts it into approximate boxes which reflect ISO-NE boundaries. 
+    west_clip = box(-73.5, 41.2, -71.8, 42.9) #cuts it into approximate boxes which reflect ISO-NE boundaries.
     ne_clip   = box(-71.8, 42.25, -69.9, 42.9)
     se_clip   = box(-71.8, 41.2, -69.9, 42.25)
     return gpd.GeoDataFrame([
-        {"zone": "West/Central Massachusetts",     "geometry": ma_geom.intersection(west_clip)},
+        {"zone": "West/Central Massachusetts",     "geometry": ma_geom.intersection(west_clip)}, #intersection keeps state shape / outline
         {"zone": "Northeast Massachusetts/Boston", "geometry": ma_geom.intersection(ne_clip)},
         {"zone": "Southeast Massachusetts",        "geometry": ma_geom.intersection(se_clip)},
     ], crs="EPSG:4326")
@@ -27,44 +27,37 @@ def make_zone_shapes(shapefile_path):
     gdf = load_state_shapes(shapefile_path)
     others = gdf[gdf["state"] != "Massachusetts"].copy().rename(columns={"state": "zone"})
     mass = split_massachusetts(gdf)
-    return gpd.GeoDataFrame(pd.concat([others, mass], ignore_index=True), crs="EPSG:4326")
+    return gpd.GeoDataFrame(pd.concat([others, mass], ignore_index=True), crs="EPSG:4326") #combines the mass and states into one dataframe
 
-def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022_us_state_20m.shp"):
+def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022_us_state_20m.shp"): #snapshots = None means can work without historical data
     gdf = make_zone_shapes(shapefile_path)
 
-    # Keep polygons even if a zone is missing from prices_df
-    gdf = gdf.merge(prices_df, on="zone", how="left")
+    gdf = gdf.merge(prices_df, on="zone", how="left") # Matches zone to price, and keeps zone even if no price data
 
-    # --- Base map (NO choropleth) so the top-right legend/key disappears ---
-    m = folium.Map(location=[43.5, -71.5], zoom_start=7)
+    m = folium.Map(location=[43.5, -71.5], zoom_start=6) #creates a map, zoomed in on New England co-ordinates
 
-    # Add just zone outlines as a stable base layer (map always visible)
     folium.GeoJson(
-        gdf[["zone", "geometry"]].to_json(),
-        style_function=lambda feature: {
+        gdf[["zone", "geometry"]].to_json(), #creates a zone which price data can be seen when mouse goes over - colour handled by JSON slider
+        style_function=lambda: {
             "fillOpacity": 0.0,
             "color": "white",
             "weight": 1.5,
         },
-        tooltip=folium.GeoJsonTooltip(fields=["zone"]),
+        tooltip=folium.GeoJsonTooltip(fields=["zone"]), #hover feature, shows details of zone - name + price data
         name="Zones",
     ).add_to(m)
 
-    if snapshots:
-        # Geometry-only geojson for drawing overlays in JS
+    if snapshots: #deals with historical data + slider
         geojson_str = gdf[["zone", "geometry"]].to_json()
 
         # Historical data dict: { label: { zone: price } }
-        all_data = {label: dict(zip(df["zone"], df["price"])) for label, df in snapshots.items()}
+        all_data = {label: dict(zip(df["zone"], df["price"])) for label, df in snapshots.items()} #creates a dictionary from 2 dfs, zipped together
 
-        # Sort labels so index increases with time (left = older, right = newer)
-        time_labels = sorted(all_data.keys())
+        time_labels = sorted(all_data.keys())# Sort labels so index increases with time (left = older, right = newer)
         n_hist = len(time_labels)
+        live_data = dict(zip(prices_df["zone"], prices_df["price"]))# Live prices (latest 5-minute prices)
 
-        # Live prices (these should already be your latest 5-minute prices)
-        live_data = dict(zip(prices_df["zone"], prices_df["price"]))
-
-        # --- PER-ZONE min/max across historical + live (for per-zone coloring) ---
+        # min/ max data for zones, used for colouring of zones
         zones = gdf["zone"].tolist()
         zone_minmax = {}
         for z in zones:
