@@ -130,7 +130,7 @@ def fetch_historical_prices(hours_back=24):
 
     zone_locids = fetch_zone_locids() #need numerical IDs - unlike 5 mins data
 
-    for zone_code, zone_name in ISONE_ZONES.items():
+    for zone_code, zone_name in ISONE_ZONES.items(): #gets the data for each day and each hour, for each zone 
         locid = zone_locids.get(zone_code)
         if not locid:
             print(f"Missing LocId for {zone_code}; skipping")
@@ -141,14 +141,14 @@ def fetch_historical_prices(hours_back=24):
 
             try:
                 r = _get(url, timeout=(5, 60))
-            except requests.exceptions.ReadTimeout:
+            except requests.exceptions.ReadTimeout: #timeout network error
                 print("Hourly timed out:", url)
                 continue
             except requests.exceptions.RequestException as e:
                 print("Hourly request error:", e, url)
                 continue
 
-            if r.status_code != 200:
+            if r.status_code != 200: #standard accepted and recieved status code
                 print("Hourly failed:", r.status_code, url)
                 continue
 
