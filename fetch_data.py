@@ -110,28 +110,20 @@ def fetch_live_prices():
                 "price": float(entry["LmpTotal"]),
             })
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows) #creates data frame with pandas so that it can be manipulated in map_viz.py
     _live_cache["data"] = df
     _live_cache["ts"] = time.time()
     return df
 
 
 def fetch_historical_prices(hours_back=24):
-    """
-    Fetch hourly RT preliminary LMPs for the last N *completed* hours.
-
-    Returns:
-      snapshots: dict { "YYYY-MM-DD HH:00": DataFrame(zone, price) }
-    """
     tz = ZoneInfo("America/New_York")
-
-    # Use the last completed hour window: [end-hours_back, ..., end-1]
-    end_hour = datetime.now(tz).replace(minute=0, second=0, microsecond=0)
+    end_hour = datetime.now(tz).replace(minute=0, second=0, microsecond=0) #backdates to most recent hour
     start_hour = end_hour - timedelta(hours=hours_back)
     wanted_hours = [start_hour + timedelta(hours=i) for i in range(hours_back)]
-    wanted_labels = {dt.strftime("%Y-%m-%d %H:00") for dt in wanted_hours}
+    wanted_labels = {dt.strftime("%Y-%m-%d %H:00") for dt in wanted_hours} #put all the past 24 hours in form YYYY-MM-DD TT:00 so can search API for these
 
-    needed_days = sorted({dt.strftime("%Y%m%d") for dt in wanted_hours})
+    needed_days = sorted({dt.strftime("%Y%m%d") for dt in wanted_hours}) #gets the wanted days 
 
     # Prepare structure label -> dict(zone_name -> price)
     prices_by_label = {dt.strftime("%Y-%m-%d %H:00"): {} for dt in wanted_hours}
