@@ -56,7 +56,7 @@ def fetch_zone_locids(force_refresh=False) -> dict:
     if not root:
         raise RuntimeError(f"Unexpected JSON structure for fiveminutelmp. Top keys: {list(data.keys())}")
 
-    lmps = root.get("FiveMinLmp", []) 
+    lmps = root.get("FiveMinLmp", [])
     if isinstance(lmps, dict): # where API returns dictionary, rather than list, this turns it into a list so for loop works.
         lmps = [lmps]
 
@@ -66,11 +66,11 @@ def fetch_zone_locids(force_refresh=False) -> dict:
         zone_code = loc.get("$")          # '.Z.MAINE'
         locid = loc.get("@LocId")         # numeric id
 
-        if zone_code in ISONE_ZONES and locid is not None:
+        if zone_code in ISONE_ZONES and locid is not None: #if in zone, turns to str then saves to cache later
             zone_to_locid[zone_code] = str(locid)
 
     if not zone_to_locid:
-        raise RuntimeError("Could not discover any LocIds for zones. Check ISO-NE response / credentials.")
+        raise RuntimeError("No LocIds for zones.") #de-bugging - check if there are any IDs
 
     _locid_cache["data"] = zone_to_locid
     _locid_cache["ts"] = time.time()
