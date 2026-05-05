@@ -57,7 +57,7 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
         n_hist = len(time_labels)
         live_data = dict(zip(prices_df["zone"], prices_df["price"]))# Live prices (latest 5-minute prices)
 
-        # min/ max data for zones, used for colouring of zones
+        # min/ max data for zones, used for colouring of zones, for every zone finds min / max data poiny
         zones = gdf["zone"].tolist()
         zone_minmax = {}
         for z in zones:
@@ -75,8 +75,6 @@ def build_map(prices_df, snapshots=None, shapefile_path="data/shapefiles/cb_2022
             else:
                 zone_minmax[z] = {"min": None, "max": None}
 
-        # Slider: 0..n_hist where n_hist == LIVE (rightmost)
-        # No play button; starts at LIVE by default.
         slider_js = f"""
         <div id="slider-container" style="
             position: fixed;
