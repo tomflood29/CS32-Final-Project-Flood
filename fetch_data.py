@@ -1,4 +1,3 @@
-import os
 import time
 import json
 from datetime import datetime, timedelta
@@ -20,34 +19,28 @@ ISONE_ZONES = {
     ".Z.NEMASSBOST":   "Northeast Massachusetts/Boston",
 }
 
-# Prefer env vars (recommended). Fallback to your hardcoded values if not set.
-ISONE_USER = os.getenv("ISONE_USER", "tomflood@college.harvard.edu")
-ISONE_PASS = os.getenv("ISONE_PASS", "CS32Passkey")
 
 BASE = "https://webservices.iso-ne.com/api/v1.1"
 
 _session = requests.Session()
 
-# Cache live prices (5 min) and LocId mapping (1 hour)
+# Cache live prices (5 min) and LocId mapping (1 hour) - so that not constantly requesting from API
 _live_cache = {"data": None, "ts": 0}
 _locid_cache = {"data": None, "ts": 0}
 
 
 def _get(url: str, timeout=(5, 45)) -> requests.Response:
-    """Small wrapper so all requests behave the same way."""
     return _session.get(
         url,
         headers={"Accept": "application/json"},
-        auth=(ISONE_USER, ISONE_PASS),
+        auth=("tomflood@college.harvard.edu", "CS32Passkey"),
         timeout=timeout,
-    )
+    )#opens a session so that the website can update to live prices each time
 
 
 def fetch_zone_locids(force_refresh=False) -> dict:
     """
-    Returns mapping: zone_code (e.g. '.Z.MAINE') -> numeric LocId string (e.g. '12345').
-
-    We discover LocIds by calling the current 5-minute LMP feed and reading:
+    returns zone ID "z.MAINE" with its nuemeric ID. Need numeric for historical prices
       entry["Location"]["$"]      -> '.Z.MAINE'
       entry["Location"]["@LocId"] -> numeric id required by /hourlylmp/.../location/{locationId}
     """
