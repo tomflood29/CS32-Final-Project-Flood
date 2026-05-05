@@ -12,9 +12,9 @@ def load_state_shapes(shapefile_path):
     gdf = gdf[gdf["NAME"].isin(NEW_ENGLAND_STATES)] #limits geo data frame to only New England states
     return gdf[["NAME", "geometry"]].rename(columns={"NAME": "state"}).reset_index(drop=True) #limits only the name and geometry of state
 
-def split_massachusetts(gdf): # 3 pricing zones 
+def split_massachusetts(gdf): # 3 pricing zones
     ma_geom = gdf.loc[gdf["state"] == "Massachusetts", "geometry"].values[0]
-    west_clip = box(-73.5, 41.2, -71.8, 42.9)
+    west_clip = box(-73.5, 41.2, -71.8, 42.9) #cuts it into approximate boxes which reflect ISO-NE boundaries. 
     ne_clip   = box(-71.8, 42.25, -69.9, 42.9)
     se_clip   = box(-71.8, 41.2, -69.9, 42.25)
     return gpd.GeoDataFrame([
